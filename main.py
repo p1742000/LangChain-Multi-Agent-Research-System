@@ -7,7 +7,6 @@ truststore.inject_into_ssl()
 
 # result = web_search("give me the latest news AI research")
 # result = scrape_url("https://guides.library.georgetown.edu/ai/news")
-
 # result = web_search.invoke("give me the latest news AI research")
 # print(result)
 

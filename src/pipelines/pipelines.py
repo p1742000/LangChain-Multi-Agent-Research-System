@@ -1,24 +1,8 @@
-from src.agents.agents import (
-    build_reader_agent,
-    build_search_agent,
-    writer_chain,
-    critic_chain,
-)
+from src.tools.tools import web_search, scrape_url
+from src.agents.agents import writer_chain, critic_chain
 
 
 def run_research_pipeline(topic: str, progress_callback=None) -> dict:
-    """
-    Runs the complete research pipeline.
-
-    Pipeline:
-        1. Search Agent
-        2. Reader Agent
-        3. Writer
-        4. Critic
-
-    progress_callback(message, progress_percent)
-    is optional and is used by the Streamlit UI.
-    """
 
     state = {}
 
@@ -26,79 +10,107 @@ def run_research_pipeline(topic: str, progress_callback=None) -> dict:
         if progress_callback:
             progress_callback(message, percent)
 
-    # ==================================================
-    # STEP 1 - SEARCH AGENT
-    # ==================================================
+    # ============================================================
+    # STEP 1 - WEB SEARCH
+    # No LLM call
+    # ============================================================
 
     update_progress(
         "Searching the web for recent and reliable information...",
         10,
     )
 
-    search_agent = build_search_agent()
-
-    search_result = search_agent.invoke({
-        "messages": [
-            (
-                "user",
-                f"Find recent, reliable and detailed information about: {topic}"
-            )
-        ]
+    search_results = web_search.invoke({
+        "query": topic
     })
 
-    state["search_results"] = search_result["messages"][-1].content
+    state["search_results"] = search_results
 
     update_progress(
-        "Search completed. Relevant information collected.",
-        30,
+        f"Found {len(search_results)} relevant sources.",
+        25,
     )
 
-    # ==================================================
-    # STEP 2 - READER AGENT
-    # ==================================================
+    # ============================================================
+    # STEP 2 - SCRAPE TOP SOURCES
+    # No LLM call
+    # ============================================================
 
     update_progress(
-        "Reader Agent is selecting and scraping the most relevant resource...",
-        40,
+        "Scraping the most relevant sources...",
+        35,
     )
 
-    reader_agent = build_reader_agent()
+    scraped_sources = []
 
-    reader_result = reader_agent.invoke({
-        "messages": [
-            (
-                "user",
-                f"Based on the following search results about '{topic}', "
-                f"pick the most relevant URL and scrape it for deeper content.\n\n"
-                f"Search Results:\n"
-                f"{state['search_results'][:800]}"
-            )
-        ]
-    })
+    # Use top 3 sources
+    for index, result in enumerate(search_results[:3], start=1):
 
-    state["scraped_content"] = reader_result["messages"][-1].content
+        url = result["url"]
+        title = result["title"]
+
+        update_progress(
+            f"Scraping source {index}/3: {title}",
+            35 + (index * 8),
+        )
+
+        content = scrape_url.invoke({
+            "url": url
+        })
+
+        scraped_sources.append({
+            "title": title,
+            "url": url,
+            "search_content": result["content"],
+            "scraped_content": content,
+        })
+
+    state["scraped_content"] = scraped_sources
+
+    # ============================================================
+    # STEP 3 - BUILD RESEARCH CONTEXT
+    # No LLM call
+    # ============================================================
 
     update_progress(
-        "Website content successfully scraped.",
-        55,
-    )
-
-    # ==================================================
-    # STEP 3 - WRITER
-    # ==================================================
-
-    update_progress(
-        "Writer Agent is synthesizing the research into a report...",
+        "Combining research from all sources...",
         65,
     )
 
-    # IMPORTANT:
-    # This must be ONE STRING, not a tuple.
-    researched_combined = (
-        f"SEARCHED RESULTS:\n"
-        f"{state['search_results']}\n\n"
-        f"DETAILED SCRAPED CONTENT:\n"
-        f"{state['scraped_content']}\n"
+    research_parts = []
+
+    for source in scraped_sources:
+
+        research_parts.append(
+            f"""
+SOURCE TITLE:
+{source['title']}
+
+SOURCE URL:
+{source['url']}
+
+SEARCH SNIPPET:
+{source['search_content']}
+
+SCRAPED CONTENT:
+{source['scraped_content']}
+"""
+        )
+
+    researched_combined = "\n\n====================\n\n".join(
+        research_parts
+    )
+
+    state["research_context"] = researched_combined
+
+    # ============================================================
+    # STEP 4 - WRITER
+    # LLM CALL #1
+    # ============================================================
+
+    update_progress(
+        "Writer is synthesizing the research into a report...",
+        75,
     )
 
     state["report"] = writer_chain.invoke({
@@ -106,18 +118,14 @@ def run_research_pipeline(topic: str, progress_callback=None) -> dict:
         "research": researched_combined,
     })
 
-    update_progress(
-        "Draft report generated.",
-        80,
-    )
-
-    # ==================================================
-    # STEP 4 - CRITIC
-    # ==================================================
+    # ============================================================
+    # STEP 5 - CRITIC
+    # LLM CALL #2
+    # ============================================================
 
     update_progress(
-        "Critic Agent is reviewing the generated report...",
-        88,
+        "Critic is reviewing the generated report...",
+        90,
     )
 
     state["feedback"] = critic_chain.invoke({

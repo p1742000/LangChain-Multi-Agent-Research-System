@@ -18,26 +18,24 @@ tavily = TavilyClient(
 
 
 @tool
-def web_search(query: str) -> str:
+def web_search(query: str) -> list[dict]:
     """
-    Search the web for recent and reliable information on a topic.
-    Returns Titles, URLs and Contents.
+    Search the web and return structured search results
+    containing title, URL and content.
     """
     results = tavily.search(
         query=query,
         max_results=5
     )
 
-    out = []
-
-    for r in results["results"]:
-        out.append(
-            f"Title: {r['title']}\n"
-            f"URL: {r['url']}\n"
-            f"Snippet: {r['content']}\n"
-        )
-
-    return "\n--------\n".join(out)
+    return [
+        {
+            "title": r["title"],
+            "url": r["url"],
+            "content": r["content"],
+        }
+        for r in results["results"]
+    ]
 
 
 @tool
