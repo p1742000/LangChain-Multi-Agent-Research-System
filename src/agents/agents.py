@@ -4,6 +4,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from src.tools.tools import web_search, scrape_url
+from src.config.llm import get_llm
 from dotenv import load_dotenv
 import os
 
@@ -11,16 +12,7 @@ import os
 load_dotenv()
 
 # Model Initialization
-# llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=os.getenv("OPENAI_API_KEY"))
-
-# Initialize the Gemini model
-llm = ChatGoogleGenerativeAI(
-    model="gemini-3.6-flash",
-    max_tokens=None,
-    timeout=None,
-    max_retries=2,
-    verbose=True
-)
+llm = get_llm()
 
 def build_search_agent():
     return create_agent(
