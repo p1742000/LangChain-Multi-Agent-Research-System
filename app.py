@@ -1,12 +1,7 @@
 import truststore
 
-# ============================================================
-# IMPORTANT FOR CORPORATE MAC / LOWE'S SSL INSPECTION
-# Must happen before importing modules that create HTTP clients.
-# ============================================================
-
+# Must be initialized before importing modules that make HTTPS calls.
 truststore.inject_into_ssl()
-
 
 import streamlit as st
 
@@ -14,136 +9,14 @@ from src.pipelines.pipelines import run_research_pipeline
 
 
 # ============================================================
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
-    page_title="AI Research Agent",
+    page_title="ResearcherAgent",
     page_icon="🔎",
     layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-
-# ============================================================
-# CUSTOM CSS
-# ============================================================
-
-st.markdown(
-    """
-    <style>
-
-    /* ---------- Main page ---------- */
-
-    .stApp {
-        background-color: #f7f9fc;
-    }
-
-    .main {
-        padding-top: 1rem;
-    }
-
-
-    /* ---------- Header ---------- */
-
-    .hero {
-        padding: 2rem 2rem 1.5rem 2rem;
-        border-radius: 16px;
-        background: linear-gradient(
-            135deg,
-            #111827 0%,
-            #1f2937 100%
-        );
-        color: white;
-        margin-bottom: 1.5rem;
-    }
-
-    .hero h1 {
-        font-size: 2.4rem;
-        margin-bottom: 0.4rem;
-        font-weight: 700;
-    }
-
-    .hero p {
-        color: #d1d5db;
-        font-size: 1.05rem;
-        margin-bottom: 0;
-    }
-
-
-    /* ---------- Cards ---------- */
-
-    .metric-card {
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 14px;
-        padding: 1.2rem;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-        text-align: center;
-    }
-
-    .metric-title {
-        color: #6b7280;
-        font-size: 0.85rem;
-        margin-bottom: 0.4rem;
-    }
-
-    .metric-value {
-        color: #111827;
-        font-size: 1.25rem;
-        font-weight: 700;
-    }
-
-
-    /* ---------- Section headings ---------- */
-
-    .section-title {
-        font-size: 1.3rem;
-        font-weight: 700;
-        color: #111827;
-        margin-top: 1rem;
-        margin-bottom: 0.8rem;
-    }
-
-
-    /* ---------- Sidebar ---------- */
-
-    section[data-testid="stSidebar"] {
-        background-color: #111827;
-    }
-
-    section[data-testid="stSidebar"] * {
-        color: white;
-    }
-
-
-    /* ---------- Text area ---------- */
-
-    textarea {
-        border-radius: 10px !important;
-    }
-
-
-    /* ---------- Buttons ---------- */
-
-    .stButton > button {
-        border-radius: 9px;
-        font-weight: 600;
-    }
-
-
-    /* ---------- Footer ---------- */
-
-    .footer {
-        text-align: center;
-        color: #9ca3af;
-        padding: 2rem 0 1rem 0;
-        font-size: 0.85rem;
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True,
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -151,163 +24,849 @@ st.markdown(
 # SESSION STATE
 # ============================================================
 
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = True
+
 if "research_state" not in st.session_state:
     st.session_state.research_state = None
 
 if "topic" not in st.session_state:
     st.session_state.topic = ""
 
+if "pipeline_percent" not in st.session_state:
+    st.session_state.pipeline_percent = 0
+
+if "pipeline_message" not in st.session_state:
+    st.session_state.pipeline_message = ""
+
 
 # ============================================================
-# SIDEBAR
+# THEME COLORS
 # ============================================================
 
-with st.sidebar:
+dark = st.session_state.dark_mode
 
-    st.markdown("## 🔎 AI Research Agent")
+if dark:
+    BG = "#07111f"
+    BG_SECONDARY = "#0b1730"
+    CARD = "#101d32"
+    CARD_HOVER = "#142640"
+
+    TEXT = "#f8fafc"
+    MUTED = "#93a4bd"
+    BORDER = "#263a57"
+
+    INPUT_BG = "#101b2d"
+
+    ACCENT = "#56c8ff"
+    ACCENT_2 = "#7b63f6"
+
+    SUCCESS = "#47c990"
+
+    # Quick suggestion buttons
+    QUICK_BG = "#2b3442"
+    QUICK_HOVER = "#374151"
+    QUICK_TEXT = "#f1f5f9"
+
+else:
+    BG = "#f5f7fb"
+    BG_SECONDARY = "#eef4ff"
+    CARD = "#ffffff"
+    CARD_HOVER = "#f7faff"
+
+    TEXT = "#111827"
+    MUTED = "#64748b"
+    BORDER = "#dbe4ef"
+
+    INPUT_BG = "#ffffff"
+
+    ACCENT = "#2196f3"
+    ACCENT_2 = "#7657e8"
+
+    SUCCESS = "#15966c"
+
+    # Quick suggestion buttons
+    QUICK_BG = "#e5e7eb"
+    QUICK_HOVER = "#d1d5db"
+    QUICK_TEXT = "#1f2937"
+
+
+# ============================================================
+# CUSTOM CSS
+#
+# IMPORTANT:
+# Only CSS is injected here.
+# We do NOT use custom HTML <div> blocks for the UI.
+# ============================================================
+
+st.markdown(
+    f"""
+    <style>
+
+    /* ======================================================
+       GLOBAL
+       ====================================================== */
+
+    .stApp {{
+        background:
+            radial-gradient(
+                circle at 5% 15%,
+                rgba(22, 130, 190, 0.18),
+                transparent 28%
+            ),
+            radial-gradient(
+                circle at 90% 55%,
+                rgba(100, 78, 200, 0.12),
+                transparent 30%
+            ),
+            linear-gradient(
+                135deg,
+                {BG} 0%,
+                {BG_SECONDARY} 100%
+            );
+
+        color: {TEXT};
+        min-height: 100vh;
+    }}
+
+    .main .block-container {{
+        max-width: 1400px;
+        padding-top: 1rem;
+        padding-bottom: 4rem;
+        padding-left: 3rem;
+        padding-right: 3rem;
+    }}
+
+
+    /* ======================================================
+       HIDE SIDEBAR / MENU / FOOTER
+       ====================================================== */
+
+    section[data-testid="stSidebar"] {{
+        display: none;
+    }}
+
+    #MainMenu {{
+        visibility: hidden;
+    }}
+
+    footer {{
+        visibility: hidden;
+    }}
+
+    header[data-testid="stHeader"] {{
+        background: transparent;
+    }}
+
+
+    /* ======================================================
+       TOP BRAND
+       ====================================================== */
+
+    .brand-text {{
+        font-size: 1rem !important;
+        font-weight: 700 !important;
+        color: {TEXT} !important;
+        margin-bottom: 0 !important;
+    }}
+
+    .brand-caption {{
+        color: {MUTED} !important;
+        font-size: 0.72rem !important;
+    }}
+
+
+    /* ======================================================
+       HERO
+       ====================================================== */
+
+    .hero-small {{
+        text-align: center;
+
+        color: {ACCENT} !important;
+
+        font-size: 0.72rem !important;
+        font-weight: 800 !important;
+
+        letter-spacing: 0.25em !important;
+
+        margin-top: 1.5rem !important;
+        margin-bottom: 0.8rem !important;
+    }}
+
+    .hero-title {{
+        text-align: center !important;
+
+        font-size: clamp(
+            3.8rem,
+            7vw,
+            6.5rem
+        ) !important;
+
+        line-height: 0.95 !important;
+
+        font-weight: 850 !important;
+
+        letter-spacing: -0.055em !important;
+
+        margin-top: 0 !important;
+        margin-bottom: 0.8rem !important;
+
+        background:
+            linear-gradient(
+                100deg,
+                #38c8ff 5%,
+                #6fa4ff 45%,
+                #8a63f4 100%
+            );
+
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }}
+
+    .hero-description {{
+        text-align: center !important;
+
+        max-width: 760px;
+
+        margin-left: auto !important;
+        margin-right: auto !important;
+
+        color: {MUTED} !important;
+
+        font-size: 1rem !important;
+        line-height: 1.7 !important;
+    }}
+
+
+    /* ======================================================
+       SECTION TITLES
+       ====================================================== */
+
+    .section-label {{
+        color: {ACCENT} !important;
+
+        font-size: 0.72rem !important;
+
+        font-weight: 800 !important;
+
+        letter-spacing: 0.18em !important;
+
+        text-transform: uppercase !important;
+    }}
+
+    .section-heading {{
+        color: {TEXT} !important;
+
+        font-size: 1.5rem !important;
+
+        font-weight: 750 !important;
+
+        margin-bottom: 0 !important;
+    }}
+
+    .section-description {{
+        color: {MUTED} !important;
+
+        font-size: 0.84rem !important;
+
+        line-height: 1.5 !important;
+    }}
+
+
+    /* ======================================================
+       INPUT
+       ====================================================== */
+
+    div[data-baseweb="input"] {{
+        background: {INPUT_BG} !important;
+
+        border: 1px solid {BORDER} !important;
+
+        border-radius: 14px !important;
+    }}
+
+    div[data-baseweb="input"]:focus-within {{
+        border-color: {ACCENT} !important;
+
+        box-shadow:
+            0 0 0 1px {ACCENT} !important;
+    }}
+
+    div[data-baseweb="input"] input {{
+        color: {TEXT} !important;
+
+        font-size: 1rem !important;
+    }}
+
+    div[data-baseweb="input"] input::placeholder {{
+        color: {MUTED} !important;
+    }}
+
+
+    /* ======================================================
+       PRIMARY BUTTON
+       ====================================================== */
+
+    .stFormSubmitButton > button {{
+        min-height: 50px !important;
+
+        border-radius: 13px !important;
+
+        border: none !important;
+
+        background:
+            linear-gradient(
+                100deg,
+                {ACCENT},
+                #6585ff,
+                {ACCENT_2}
+            ) !important;
+
+        color: white !important;
+
+        font-weight: 750 !important;
+
+        font-size: 0.95rem !important;
+
+        box-shadow:
+            0 10px 25px
+            rgba(84, 137, 241, 0.23) !important;
+    }}
+
+    .stFormSubmitButton > button:hover {{
+        transform: translateY(-1px);
+
+        box-shadow:
+            0 14px 30px
+            rgba(84, 137, 241, 0.30) !important;
+    }}
+
+
+    /* ======================================================
+       QUICK TOPIC BUTTONS
+       ====================================================== */
+
+    div[data-testid="stButton"] > button {{
+        min-height: 40px !important;
+
+        background: {QUICK_BG} !important;
+
+        color: {QUICK_TEXT} !important;
+
+        border: 1px solid {BORDER} !important;
+
+        border-radius: 10px !important;
+
+        box-shadow: none !important;
+
+        font-size: 0.77rem !important;
+
+        font-weight: 600 !important;
+
+        transition:
+            background 0.15s ease,
+            border-color 0.15s ease,
+            transform 0.15s ease !important;
+    }}
+
+    div[data-testid="stButton"] > button:hover {{
+        background: {QUICK_HOVER} !important;
+
+        color: {QUICK_TEXT} !important;
+
+        border-color: {ACCENT} !important;
+
+        transform: translateY(-1px);
+    }}
+
+    /* ======================================================
+       PIPELINE CARDS
+       ====================================================== */
+
+    .pipeline-card {{
+        background: {CARD};
+
+        border: 1px solid {BORDER};
+
+        border-radius: 16px;
+
+        padding: 0.95rem 1.1rem;
+
+        margin-bottom: 0.7rem;
+    }}
+
+    .pipeline-active {{
+        border-color: {ACCENT} !important;
+
+        box-shadow:
+            0 0 0 1px
+            rgba(86, 200, 255, 0.12),
+            0 10px 28px
+            rgba(38, 135, 210, 0.10);
+    }}
+
+    .pipeline-done {{
+        border-color: {SUCCESS} !important;
+    }}
+
+    .pipeline-number {{
+        color: {ACCENT};
+
+        font-size: 0.68rem;
+
+        font-weight: 800;
+
+        letter-spacing: 0.12em;
+    }}
+
+    .pipeline-name {{
+        color: {TEXT};
+
+        font-size: 0.95rem;
+
+        font-weight: 750;
+    }}
+
+    .pipeline-description {{
+        color: {MUTED};
+
+        font-size: 0.74rem;
+    }}
+
+    .pipeline-waiting {{
+        color: {MUTED};
+
+        font-size: 0.62rem;
+
+        font-weight: 800;
+
+        letter-spacing: 0.12em;
+    }}
+
+    .pipeline-running {{
+        color: {ACCENT};
+
+        font-size: 0.62rem;
+
+        font-weight: 800;
+
+        letter-spacing: 0.12em;
+    }}
+
+    .pipeline-complete {{
+        color: {SUCCESS};
+
+        font-size: 0.62rem;
+
+        font-weight: 800;
+
+        letter-spacing: 0.12em;
+    }}
+
+
+    /* ======================================================
+       RESULT CONTAINERS
+       ====================================================== */
+
+    div[data-testid="stVerticalBlockBorderWrapper"] {{
+        border-color: {BORDER} !important;
+
+        border-radius: 16px !important;
+
+        background: {CARD} !important;
+    }}
+
+
+    /* ======================================================
+       TABS
+       ====================================================== */
+
+    button[data-baseweb="tab"] {{
+        color: {MUTED} !important;
+
+        font-weight: 650 !important;
+    }}
+
+    button[data-baseweb="tab"][aria-selected="true"] {{
+        color: {ACCENT} !important;
+    }}
+
+
+    /* ======================================================
+       DOWNLOAD BUTTON
+       ====================================================== */
+
+    div[data-testid="stDownloadButton"] button {{
+        border-radius: 10px !important;
+
+        border: 1px solid {BORDER} !important;
+
+        background: {CARD} !important;
+
+        color: {TEXT} !important;
+    }}
+
+
+    /* ======================================================
+       PROGRESS BAR
+       ====================================================== */
+
+    div[data-testid="stProgressBar"] > div > div {{
+        background:
+            linear-gradient(
+                90deg,
+                {ACCENT},
+                {ACCENT_2}
+            ) !important;
+    }}
+
+
+    /* ======================================================
+       MOBILE
+       ====================================================== */
+
+    @media (max-width: 900px) {{
+
+        .main .block-container {{
+            padding-left: 1.2rem;
+            padding-right: 1.2rem;
+        }}
+
+        .hero-title {{
+            font-size: 4rem !important;
+        }}
+
+    }}
+
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
+# TOP BAR
+# ============================================================
+
+top_left, top_right = st.columns(
+    [8, 1],
+    vertical_alignment="center",
+)
+
+with top_left:
+
+    brand_col_1, brand_col_2 = st.columns(
+        [0.5, 6],
+        vertical_alignment="center",
+    )
+
+    with brand_col_1:
+        st.markdown(
+            "🔎",
+            text_alignment="center",
+        )
+
+    with brand_col_2:
+        st.markdown(
+            '<p class="brand-text">ResearcherAgent</p>',
+            unsafe_allow_html=True,
+        )
+
+        st.markdown(
+            '<p class="brand-caption">Multi-agent research workspace</p>',
+            unsafe_allow_html=True,
+        )
+
+
+with top_right:
+
+    new_theme = st.toggle(
+        "Dark mode",
+        value=st.session_state.dark_mode,
+        label_visibility="collapsed",
+        help="Toggle dark / light mode",
+    )
+
+    if new_theme != st.session_state.dark_mode:
+        st.session_state.dark_mode = new_theme
+        st.rerun()
+
+
+# ============================================================
+# HERO
+# ============================================================
+
+st.markdown(
+    '<p class="hero-small">MULTI-AGENT AI SYSTEM</p>',
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    '<h1 class="hero-title">ResearcherAgent</h1>',
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    """
+    <p class="hero-description">
+        Search the web, analyze reliable sources, generate
+        a structured research report, and review the result
+        with AI-powered reasoning.
+    </p>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.divider()
+
+
+# ============================================================
+# MAIN WORKSPACE
+# ============================================================
+
+left_col, right_col = st.columns(
+    [1.15, 0.85],
+    gap="large",
+)
+
+
+# ============================================================
+# LEFT: RESEARCH INPUT
+# ============================================================
+
+with left_col:
+
+    st.markdown(
+        '<p class="section-label">RESEARCH TOPIC</p>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        '<p class="section-heading">What should we research?</p>',
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         """
-        <p style="color:#9ca3af;">
-        Multi-agent research assistant powered by LangChain.
+        <p class="section-description">
+            Ask a focused question or describe a topic you want
+            the research pipeline to investigate.
         </p>
         """,
         unsafe_allow_html=True,
     )
 
-    st.divider()
+    # --------------------------------------------------------
+    # Input form
+    # --------------------------------------------------------
 
-    st.markdown("### Workflow")
-
-    st.markdown(
-        """
-        **1. Search Agent**
-
-        Finds recent and relevant information.
-
-        **2. Reader Agent**
-
-        Selects a useful source and extracts deeper content.
-
-        **3. Writer**
-
-        Synthesizes the research into a report.
-
-        **4. Critic**
-
-        Reviews the generated report and provides feedback.
-        """
-    )
-
-    st.divider()
-
-    st.markdown("### What can you research?")
-
-    st.markdown(
-        """
-        - AI and technology
-        - Software engineering
-        - Market trends
-        - Business topics
-        - Scientific research
-        - Industry developments
-        """
-    )
-
-    st.divider()
-
-    if st.button(
-        "🗑️ Clear Results",
-        use_container_width=True,
+    with st.form(
+        "research_form",
+        clear_on_submit=False,
     ):
-        st.session_state.research_state = None
-        st.session_state.topic = ""
-        st.rerun()
 
-
-# ============================================================
-# HERO HEADER
-# ============================================================
-
-st.markdown(
-    """
-    <div class="hero">
-        <h1>🔎 AI Research Agent</h1>
-        <p>
-            Search the web, read relevant sources, synthesize findings,
-            and critically review the final research report.
-        </p>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-# ============================================================
-# SEARCH INPUT
-# ============================================================
-
-st.markdown(
-    '<div class="section-title">What would you like to research?</div>',
-    unsafe_allow_html=True,
-)
-
-
-with st.form("research_form"):
-
-    topic = st.text_input(
-        "Research topic",
-        value=st.session_state.topic,
-        placeholder="Example: How is generative AI changing software engineering in 2026?",
-        label_visibility="collapsed",
-    )
-
-    col1, col2 = st.columns([5, 1])
-
-    with col1:
-        st.caption(
-            "Tip: Be specific. A focused question usually produces better research."
+        topic = st.text_input(
+            "Research Topic",
+            value=st.session_state.topic,
+            placeholder=(
+                "e.g. Roadmap for AGI development "
+                "in next 5 years"
+            ),
+            label_visibility="collapsed",
         )
 
-    with col2:
+        st.write("")
+
         submitted = st.form_submit_button(
-            "🚀 Research",
+            "⚡  Run Research Pipeline",
             use_container_width=True,
         )
 
+    # --------------------------------------------------------
+    # Quick prompts
+    # --------------------------------------------------------
 
-# ============================================================
-# EXAMPLE QUESTIONS
-# ============================================================
+    st.caption("TRY →")
 
-if not st.session_state.research_state:
-
-    st.markdown(
-        '<div class="section-title">Try an example</div>',
-        unsafe_allow_html=True,
-    )
-
-    example_cols = st.columns(3)
-
-    examples = [
-        "Latest developments in agentic AI",
-        "How AI is changing software engineering",
-        "Latest advancements in AI coding agents",
+    quick_topics = [
+        "Future of LLM in Tech Industry",
+        "All Latest AI Agents in 2026",
+        "Roadmap for AGI development in next 5 years",
     ]
 
-    for i, example in enumerate(examples):
+    quick_container = st.container()
 
-        with example_cols[i]:
-            if st.button(
-                example,
-                use_container_width=True,
-            ):
-                st.session_state.topic = example
-                st.rerun()
+with quick_container:
+
+    for index, quick_topic in enumerate(quick_topics):
+
+        clicked = st.button(
+            quick_topic,
+            key=f"quick_topic_{index}",
+        )
+
+        if clicked:
+            st.session_state.topic = quick_topic
+            st.rerun()
 
 
 # ============================================================
-# EXECUTE RESEARCH
+# RIGHT: PIPELINE
+# ============================================================
+
+with right_col:
+
+    pipeline_title_col, pipeline_badge_col = st.columns(
+        [4, 1],
+        vertical_alignment="center",
+    )
+
+    with pipeline_title_col:
+
+        st.markdown(
+            '<p class="section-heading">Pipeline</p>',
+            unsafe_allow_html=True,
+        )
+
+    with pipeline_badge_col:
+
+        st.caption("LIVE")
+
+
+    def get_step_status(
+        step_number: int,
+        percent: int,
+    ) -> str:
+
+        ranges = {
+            1: (0, 30),
+            2: (30, 65),
+            3: (65, 80),
+            4: (80, 101),
+        }
+
+        low, high = ranges[step_number]
+
+        if percent >= high:
+            return "done"
+
+        if low <= percent < high:
+            return "active"
+
+        return "waiting"
+
+
+    def render_pipeline_step(
+        number: int,
+        name: str,
+        description: str,
+        status: str,
+    ):
+
+        if status == "active":
+
+            status_text = "RUNNING"
+            status_class = "pipeline-running"
+            card_class = "pipeline-active"
+
+        elif status == "done":
+
+            status_text = "DONE"
+            status_class = "pipeline-complete"
+            card_class = "pipeline-done"
+
+        else:
+
+            status_text = "WAITING"
+            status_class = "pipeline-waiting"
+            card_class = ""
+
+        with st.container(
+            border=True,
+        ):
+
+            title_col, status_col = st.columns(
+                [4, 1],
+                vertical_alignment="center",
+            )
+
+            with title_col:
+
+                number_col, name_col = st.columns(
+                    [0.5, 4],
+                    vertical_alignment="center",
+                )
+
+                with number_col:
+
+                    st.markdown(
+                        f'<span class="pipeline-number">'
+                        f'{number:02d}'
+                        f'</span>',
+                        unsafe_allow_html=True,
+                    )
+
+                with name_col:
+
+                    st.markdown(
+                        f'<span class="pipeline-name">'
+                        f'{name}'
+                        f'</span>',
+                        unsafe_allow_html=True,
+                    )
+
+            with status_col:
+
+                st.markdown(
+                    f'<span class="{status_class}">'
+                    f'{status_text}'
+                    f'</span>',
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown(
+                f'<span class="pipeline-description">'
+                f'{description}'
+                f'</span>',
+                unsafe_allow_html=True,
+            )
+
+
+    current_percent = st.session_state.pipeline_percent
+
+    render_pipeline_step(
+        1,
+        "Web Search",
+        "Find relevant and recent sources",
+        get_step_status(1, current_percent),
+    )
+
+    render_pipeline_step(
+        2,
+        "Source Analysis",
+        "Scrape and extract useful content",
+        get_step_status(2, current_percent),
+    )
+
+    render_pipeline_step(
+        3,
+        "Writer",
+        "Generate the research report",
+        get_step_status(3, current_percent),
+    )
+
+    render_pipeline_step(
+        4,
+        "Critic",
+        "Review and score the report",
+        get_step_status(4, current_percent),
+    )
+
+
+# ============================================================
+# RUN RESEARCH
 # ============================================================
 
 if submitted:
@@ -315,53 +874,75 @@ if submitted:
     if not topic.strip():
 
         st.warning(
-            "Please enter a research topic before starting."
+            "Please enter a research topic."
         )
 
     else:
 
         st.session_state.topic = topic
-
-        progress_bar = st.progress(0)
+        st.session_state.pipeline_percent = 10
 
         status_container = st.empty()
 
-        def update_ui(message: str, percent: int):
+        progress_bar = st.progress(
+            0,
+            text="Starting research...",
+        )
+
+
+        def update_ui(
+            message: str,
+            percent: int,
+        ):
+
+            st.session_state.pipeline_percent = percent
 
             status_container.info(
-                f"🔄 {message}"
+                message
             )
 
-            progress_bar.progress(percent)
+            progress_bar.progress(
+                percent,
+                text=message,
+            )
+
+            # Streamlit reruns the script naturally, but the
+            # progress state is preserved in session_state.
+
 
         try:
 
-            with st.spinner("Running the research pipeline..."):
-
-                result = run_research_pipeline(
-                    topic=topic,
-                    progress_callback=update_ui,
-                )
+            result = run_research_pipeline(
+                topic=topic,
+                progress_callback=update_ui,
+            )
 
             st.session_state.research_state = result
 
-            status_container.success(
-                "✅ Research completed successfully."
+            st.session_state.pipeline_percent = 100
+
+            progress_bar.progress(
+                100,
+                text="Research completed successfully.",
             )
 
-            progress_bar.progress(100)
+            status_container.success(
+                "Research completed successfully."
+            )
+
+            st.rerun()
 
         except Exception as e:
 
             status_container.error(
-                "❌ Research pipeline failed."
+                "Research pipeline failed."
             )
 
             st.exception(e)
 
 
 # ============================================================
-# DISPLAY RESULTS
+# RESULTS
 # ============================================================
 
 if st.session_state.research_state:
@@ -370,188 +951,181 @@ if st.session_state.research_state:
 
     st.divider()
 
-    # --------------------------------------------------------
-    # METRICS
-    # --------------------------------------------------------
-
     st.markdown(
-        '<div class="section-title">Research Overview</div>',
+        '<p class="section-heading">Research Results</p>',
         unsafe_allow_html=True,
     )
 
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-
-        st.markdown(
-            """
-            <div class="metric-card">
-                <div class="metric-title">Search</div>
-                <div class="metric-value">Completed</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with col2:
-
-        st.markdown(
-            """
-            <div class="metric-card">
-                <div class="metric-title">Reader</div>
-                <div class="metric-value">Completed</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with col3:
-
-        st.markdown(
-            """
-            <div class="metric-card">
-                <div class="metric-title">Writer</div>
-                <div class="metric-value">Completed</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with col4:
-
-        st.markdown(
-            """
-            <div class="metric-card">
-                <div class="metric-title">Critic</div>
-                <div class="metric-value">Completed</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-
-    st.write("")
-
-
-    # --------------------------------------------------------
-    # TABS
-    # --------------------------------------------------------
-
-    tab1, tab2, tab3, tab4 = st.tabs(
+    tab_report, tab_sources, tab_scraped, tab_critic = st.tabs(
         [
-            "📄 Final Report",
-            "🔍 Search Research",
+            "📄 Report",
+            "🔗 Sources",
             "🌐 Scraped Content",
-            "🧠 Critic Feedback",
+            "🧠 Critic",
         ]
     )
 
 
     # ========================================================
-    # TAB 1 - FINAL REPORT
+    # REPORT
     # ========================================================
 
-    with tab1:
-
-        st.markdown(
-            '<div class="section-title">Research Report</div>',
-            unsafe_allow_html=True,
-        )
+    with tab_report:
 
         report = state.get(
             "report",
-            "No report generated.",
+            "No report available.",
         )
 
-        st.markdown(report)
+        with st.container(
+            border=True,
+        ):
 
-        st.divider()
+            st.markdown(report)
 
         st.download_button(
-            label="⬇️ Download Report",
+            "⬇ Download Report",
             data=report,
-            file_name="ai_research_report.txt",
-            mime="text/plain",
-            use_container_width=False,
+            file_name="research_report.md",
+            mime="text/markdown",
         )
 
 
     # ========================================================
-    # TAB 2 - SEARCH RESULTS
+    # SOURCES
     # ========================================================
 
-    with tab2:
-
-        st.markdown(
-            '<div class="section-title">Search Results</div>',
-            unsafe_allow_html=True,
-        )
+    with tab_sources:
 
         search_results = state.get(
             "search_results",
-            "No search results available.",
+            [],
         )
 
-        st.text_area(
-            "Raw search output",
-            value=search_results,
-            height=500,
-            label_visibility="collapsed",
-        )
+        if not search_results:
+
+            st.info("No sources found.")
+
+        else:
+
+            for index, source in enumerate(
+                search_results,
+                start=1,
+            ):
+
+                title = source.get(
+                    "title",
+                    "Untitled source",
+                )
+
+                url = source.get(
+                    "url",
+                    "",
+                )
+
+                content = source.get(
+                    "content",
+                    "",
+                )
+
+                with st.container(
+                    border=True,
+                ):
+
+                    st.markdown(
+                        f"### {index}. {title}"
+                    )
+
+                    if url:
+
+                        st.caption(
+                            url
+                        )
+
+                    st.write(
+                        content
+                    )
 
 
     # ========================================================
-    # TAB 3 - SCRAPED CONTENT
+    # SCRAPED CONTENT
     # ========================================================
 
-    with tab3:
+    with tab_scraped:
 
-        st.markdown(
-            '<div class="section-title">Scraped Source Content</div>',
-            unsafe_allow_html=True,
-        )
-
-        scraped_content = state.get(
+        scraped_sources = state.get(
             "scraped_content",
-            "No scraped content available.",
+            [],
         )
 
-        st.text_area(
-            "Scraped content",
-            value=scraped_content,
-            height=500,
-            label_visibility="collapsed",
-        )
+        if not scraped_sources:
+
+            st.info(
+                "No scraped content available."
+            )
+
+        else:
+
+            for index, source in enumerate(
+                scraped_sources,
+                start=1,
+            ):
+
+                title = source.get(
+                    "title",
+                    f"Source {index}",
+                )
+
+                url = source.get(
+                    "url",
+                    "",
+                )
+
+                content = source.get(
+                    "scraped_content",
+                    "",
+                )
+
+                with st.expander(
+                    f"{index}. {title}",
+                    expanded=False,
+                ):
+
+                    st.caption(
+                        url
+                    )
+
+                    st.write(
+                        content
+                    )
 
 
     # ========================================================
-    # TAB 4 - CRITIC
+    # CRITIC
     # ========================================================
 
-    with tab4:
-
-        st.markdown(
-            '<div class="section-title">Critic Feedback</div>',
-            unsafe_allow_html=True,
-        )
+    with tab_critic:
 
         feedback = state.get(
             "feedback",
             "No critic feedback available.",
         )
 
-        st.markdown(feedback)
+        with st.container(
+            border=True,
+        ):
+
+            st.markdown(
+                feedback
+            )
 
 
 # ============================================================
 # FOOTER
 # ============================================================
 
-st.markdown(
-    """
-    <div class="footer">
-        Built with Streamlit + LangChain + LangGraph + Tavily
-    </div>
-    """,
-    unsafe_allow_html=True,
+st.divider()
+
+st.caption(
+    "ResearcherAgent · LangChain · Tavily · Ollama"
 )
